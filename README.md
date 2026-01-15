@@ -16,7 +16,11 @@
 
 ### 2. 配置 Secrets
 
-在仓库 `Settings` → `Secrets and variables` → `Actions` 中添加：
+1. 进入你的 GitHub 仓库页面
+2. 点击顶部的 `Settings` 标签
+3. 左侧菜单找到 `Secrets and variables` → 点击 `Actions`
+4. 点击绿色按钮 `New repository secret`
+5. 依次添加以下变量：
 
 | Secret 名称 | 必填 | 说明 |
 |------------|------|------|
@@ -27,7 +31,20 @@
 | `DD_ACCESS_TOKEN` | ❌ | 钉钉机器人 access_token |
 | `DD_SECRET` | ❌ | 钉钉机器人加签密钥 |
 
-### 3. 启用 Actions
+### 3. 配置钉钉通知（可选）
+
+1. 打开钉钉，进入一个群（或新建一个群）
+2. 点击群设置 → 智能群助手 → 添加机器人
+3. 选择「自定义」机器人，设置名称
+4. 安全设置选择「加签」，复制生成的 `SEC...` 开头的密钥（即 `DD_SECRET`）
+5. 点击完成，复制 Webhook 地址，格式如下：
+   ```
+   https://oapi.dingtalk.com/robot/send?access_token=xxxxxx
+   ```
+   `access_token=` 后面那串即为 `DD_ACCESS_TOKEN`
+6. 将这两个值添加到 GitHub Secrets
+
+### 4. 启用 Actions
 
 Fork 后需手动启用 Actions，进入 `Actions` 页面点击启用即可。
 
