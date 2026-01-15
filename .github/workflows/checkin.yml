@@ -1,0 +1,31 @@
+name: T00ls 签到
+
+on:
+  schedule:
+    # 每天 UTC 0:00 (北京时间 8:00)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run checkin
+        env:
+          T00LS_USERNAME: ${{ secrets.T00LS_USERNAME }}
+          T00LS_PASSWORD: ${{ secrets.T00LS_PASSWORD }}
+          T00LS_QUESTIONID: ${{ secrets.T00LS_QUESTIONID }}
+          T00LS_ANSWER: ${{ secrets.T00LS_ANSWER }}
+          DD_ACCESS_TOKEN: ${{ secrets.DD_ACCESS_TOKEN }}
+          DD_SECRET: ${{ secrets.DD_SECRET }}
+        run: python toolsqiandao.py
