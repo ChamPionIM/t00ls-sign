@@ -12,6 +12,29 @@ import requests
 def getenv(name, default=""):
     v = os.environ.get(name)
     return default if v is None or str(v).strip() == "" else str(v).strip()
+# 日志脱敏
+def get_safe_log(text):
+    """
+    尝试解析 JSON 并隐藏敏感字段，如果不是 JSON 则截断输出
+    """
+    try:
+        data = json.loads(text)
+        # 1. 隐藏 Cookie
+        if "cookie" in data:
+            data["cookie"] = "****** (已隐藏)"
+        
+        # 2. 隐藏 formhash (只保留前2位)
+        if "formhash" in data:
+            fh = str(data["formhash"])
+            data["formhash"] = fh[:2] + "***" if len(fh) > 2 else "***"
+
+        # 返回处理后的 JSON 字符串
+        return json.dumps(data, ensure_ascii=False)
+    except:
+        # 如果解析失败，说明不是标准JSON，只截取前 50 个字符
+        return text[:50] + "..."
+
+
 
 # T00ls 账户
 USERNAME   = getenv("T00LS_USERNAME")
@@ -105,7 +128,7 @@ def main():
             "answer": ANSWER
         }
         login_resp = do_request("POST", login_url, session=s, data=login_data)
-        print("登录响应：", login_resp.text[:500])
+        print("登录响应：", get_safe_log(login_resp.text))
         if login_resp.status_code != 200:
             raise Exception(f"登录请求失败，状态码: {login_resp.status_code}")
 
