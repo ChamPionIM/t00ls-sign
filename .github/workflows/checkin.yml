@@ -29,3 +29,44 @@ jobs:
           DD_ACCESS_TOKEN: ${{ secrets.DD_ACCESS_TOKEN }}
           DD_SECRET: ${{ secrets.DD_SECRET }}
         run: python toolsqiandao.py
+
+  keepalive:
+    # 与每日签到共用同一个定时触发：每次定时运行都会进入本 job，
+    # 但仅在每月 13 号真正调用 GitHub API 重新启用本 workflow，
+    # 防止公共仓库因 60 天无活动导致定时任务被自动禁用。
+    # 13 号当天会额外单独发一条钉钉通知，与签到通知相互独立。
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Re-enable workflow on the 13th
+        id: reenable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ "$(date -u +%d)" = "13" ] || { echo "非 13 号，跳过续命。"; echo "ran=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          workflow="${GITHUB_WORKFLOW_REF%%@*}"
+          workflow="${workflow#${GITHUB_REPOSITORY}/.github/workflows/}"
+          gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/enable"
+          echo "已重新启用 ${workflow}"
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+
+      - name: 发送钉钉通知
+        if: steps.reenable.outputs.ran == 'true'
+        env:
+          DD_ACCESS_TOKEN: ${{ secrets.DD_ACCESS_TOKEN }}
+          DD_SECRET: ${{ secrets.DD_SECRET }}
+        run: |
+          python -c "from toolsqiandao import send_dingtalk; send_dingtalk('T00ls 定时任务续命', '已重新启用 checkin.yml，避免 workflow 因仓库 60 天无活动被 GitHub 自动禁用。')"

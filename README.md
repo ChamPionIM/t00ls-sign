@@ -50,6 +50,15 @@
 
 Fork 后需手动启用 Actions，进入 `Actions` 页面点击启用即可。
 
+> **注意**：若 workflow 已被 GitHub 因仓库长期无活动而自动禁用（`disabled_inactivity`），需进入 `Actions` 页面点击 `Enable workflow` 手动恢复一次。仓库内置的 `keepalive` 任务只能**预防**自动禁用，无法在已被禁用后自行恢复（禁用状态下定时任务不再运行）。
+
+## Fork 用户须知
+
+1. **先启用 Actions**：Fork 出来的仓库 Actions 默认是关闭的（页面顶部会有 `Workflows aren't being run on this forked repository` 提示），必须先点 `I understand my workflows, go ahead and enable them`，否则定时任务不会运行。
+2. **配好 Secrets**：至少要有 `T00LS_USERNAME` 和 `T00LS_PASSWORD`，否则签到会失败（见上文第 2 步）。`DD_*` 不配也能跑，只是收不到钉钉通知。
+3. **`keepalive` 什么时候跑**：每月只有 13 号（UTC）会真正调用 GitHub API 续命，其余日期自动跳过。同步上游（`Sync fork`）本身就是一次仓库活动，同样会重置 60 天计时器，所以错过当月 13 号也不会中断。
+4. **万一 `keepalive` 报权限错误（403）**：说明账号/仓库的默认 workflow 权限被设成了只读，到 `Settings` → `Actions` → `General` → `Workflow permissions` 选 `Read and write permissions` 即可。正常情况下不需要改——workflow 里已显式声明 `permissions: actions: write`，会覆盖默认值。
+
 ## 定时执行
 
 默认每天北京时间 8:00 自动执行，可在 `.github/workflows/checkin.yml` 中修改 cron 表达式。
@@ -61,3 +70,37 @@ Fork 后需手动启用 Actions，进入 `Actions` 页面点击启用即可。
 ## 免责声明
 
 仅供学习交流，请勿滥用。
+
+## CHANGELOG
+
+### 2026-10-12
+
+- 新增 `keepalive` 任务：与每日签到共用同一次定时运行，仅在每月 13 号调用 GitHub API 重新启用本 workflow，防止公共仓库因 60 天无活动导致定时任务被自动禁用（不依赖第三方 action，不产生空提交）。
+- 续命成功时由 `keepalive` 单独发送一条钉钉通知，其余日期不发；13 号当天共两条通知（续命 + 签到），两者相互独立。
+- README 补充 workflow 被自动禁用后的手动恢复说明。
+- README 新增「Fork 用户须知」，汇总 Fork 后的启用与配置要点。
+
+### 2026-09-18
+
+- 更新 README 稳定运行时间。
+
+### 2026-06-09
+
+- 更新 README 运行时间。
+
+### 2026-05-05
+
+- 日志输出对 Cookie、formhash 等敏感字段做脱敏处理（PR #3）。
+- 保活定时 workflow。
+
+### 2026-01-19
+
+- 签到脚本日志脱敏，避免敏感信息泄露。
+
+### 2026-01-15
+
+- 首个可用版本：自动登录 T00ls 论坛并每日签到。
+- 支持钉钉机器人通知（加签 + access_token）。
+- 支持 GitHub Actions 定时运行。
+- 支持安全问题的登录校验（`T00LS_QUESTIONID` / `T00LS_ANSWER`）。
+- 补充 README 详细配置教程。
