@@ -5,6 +5,7 @@ import hmac
 import hashlib
 import base64
 import json
+import datetime
 from urllib.parse import quote_plus, unquote
 import requests
 
@@ -58,6 +59,13 @@ PROXIES = {}
 if HTTP_PROXY:  PROXIES["http"]  = HTTP_PROXY
 if HTTPS_PROXY: PROXIES["https"] = HTTPS_PROXY
 
+# ===== README 稳定运行统计 =====
+# 签到确认成功后，把 README 里「已稳定运行：yyyy-mm-dd ~ yyyy-mm-dd（N 天）。」一行
+# 按 START_DATE ~ 当天 的日历天数重算并写回，交由 workflow 提交。
+START_DATE          = getenv("T00LS_START_DATE", "2026-01-15")
+README_PATH         = getenv("T00LS_README_PATH", "README.md")
+README_STATS_MARKER = "已稳定运行："      # 含全角冒号，只匹配正文顶部那一行
+
 # ===== 钉钉通知 =====
 def send_dingtalk(title: str, content: str):
     if not DD_ACCESS_TOKEN:
@@ -105,6 +113,58 @@ def do_request(method, url, session=None, **kwargs):
             time.sleep(1 + i)
     if last_exc:
         raise last_exc
+
+# ===== README 稳定运行统计更新 =====
+def _parse_date(s):
+    try:
+        return datetime.date.fromisoformat(str(s).strip())
+    except Exception:
+        return None
+
+
+def update_readme_stats(today=None, path=None):
+    """
+    按 START_DATE ~ 当天 的日历天数重算 README 中「已稳定运行」那一行，
+    返回 True 表示文件确有改动。
+    任何异常都只打日志、不抛出——不能因为改 README 把一次成功的签到判成失败。
+    """
+    try:
+        path = path or README_PATH
+        start = _parse_date(START_DATE)
+        if not start:
+            print(f"README 统计：T00LS_START_DATE 非法（{START_DATE!r}），跳过。")
+            return False
+
+        end = today or datetime.date.today()
+        days = (end - start).days
+        new_line = f"已稳定运行：{start.isoformat()} ~ {end.isoformat()}（{days} 天）。"
+
+        # newline="" 关闭换行转换，原样保留文件里的 LF / CRLF
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            lines = f.read().splitlines(keepends=True)
+
+        for i, ln in enumerate(lines):
+            if not ln.lstrip().startswith(README_STATS_MARKER):
+                continue
+            eol = ln[len(ln.rstrip("\r\n")):]        # 沿用原文件行尾
+            if new_line + eol == ln:
+                print(f"README 统计无变化：{new_line}")
+                return False
+            lines[i] = new_line + eol
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write("".join(lines))
+            print(f"README 统计已更新：{new_line}")
+            return True
+
+        print(f"README 统计：未找到含「{README_STATS_MARKER}」的行，跳过。")
+        return False
+    except FileNotFoundError:
+        print(f"README 统计：找不到 {path}，跳过。")
+        return False
+    except Exception as e:
+        print(f"README 统计更新失败（已忽略）：{e}")
+        return False
+
 
 # ===== 主逻辑 =====
 def main():
@@ -181,12 +241,16 @@ def main():
 
         already_signed = ("alreadysign" in message.lower()) or ("已签" in message)
 
+        if not (status == "success" or already_signed):
+            raise Exception(f"签到未成功：status={status}, message={message}")
+
+        # 今日签到已确认（新签成功 / 此前已签），刷新 README 的稳定运行天数
+        update_readme_stats()
+
         if status == "success":
             send_dingtalk("T00ls 签到成功", f"**接口返回**：\n\n```\n{jr or raw}\n```")
-        elif already_signed:
-            send_dingtalk("T00ls 今日已签到", f"**接口返回**：\n\n```\n{jr or raw}\n```\n\n> 提示：接口提示已签过。")
         else:
-            raise Exception(f"签到未成功：status={status}, message={message}")
+            send_dingtalk("T00ls 今日已签到", f"**接口返回**：\n\n```\n{jr or raw}\n```\n\n> 提示：接口提示已签过。")
 
     except Exception as e:
         err = f"{type(e).__name__}: {e}"
